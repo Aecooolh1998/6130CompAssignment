@@ -16,9 +16,9 @@ const app = express()
 const port = 3000
 
 //connection string listing the mongo servers. This is an alternative to using a load balancer. THIS SHOULD BE DISCUSSED IN YOUR ASSIGNMENT.
-const connectionString = 'mongodb://localmongo1:27017,localmongo2:27017,localmongo3:27017/sweetShopDB?replicaSet=rs0';
+const connectionString = 'mongodb://localmongo1:27017,localmongo2:27017,localmongo3:27017/notFlixDB?replicaSet=rs0';
 
-setInterval(function() {
+setInterval(function () {
 
   console.log(`Intervals are used to fire a function for the lifetime of an application.`);
 
@@ -28,7 +28,7 @@ setInterval(function() {
 app.use(bodyParser.json());
 
 //connect to the cluster
-mongoose.connect(connectionString, {useNewUrlParser: true, useUnifiedTopology: true});
+mongoose.connect(connectionString, { useNewUrlParser: true, useUnifiedTopology: true });
 
 
 var db = mongoose.connection;
@@ -36,41 +36,43 @@ db.on('error', console.error.bind(console, 'MongoDB connection error:'));
 
 var Schema = mongoose.Schema;
 
-var stockSchema = new Schema({
+var interactionSchema = new Schema({
   _id: Number,
-  item: String,
-  price: Number,
-  quantity: Number
+  accountID: Number,
+  userName: String,
+  titleID: Number,
+  userAction: String,
+  dateTime: String,
+  pointOfInteraction: String,
+  typeOfInteraction: String
 });
 
-var stockModel = mongoose.model('Stock', stockSchema, 'stock');
-
-
+var interactionModel = mongoose.model('Interaction', interactionSchema, 'interaction');
 
 app.get('/', (req, res) => {
-  stockModel.find({},'item price quantity', (err, stock) => {
-    if(err) return handleError(err);
-    res.send(JSON.stringify(stock))
-  }) 
+  interactionModel.find({}, 'accountID userName titleID userAction dateTime pointOfInteraction typeOfInteraction', (err, interaction) => {
+    if (err) return handleError(err);
+    res.send(JSON.stringify(interaction))
+  })
 })
 
-app.post('/', (req, res) => {
-  var new_stock_instance = new stockModel(req.body);
-  new_stock_instance.save(function (err) {
+app.post('/',  (req, res) => {
+  var interaction_instance = new interactionModel(req.body);
+  interaction_instance.save(function (err) {
   if (err) res.send('Error');
-  res.send(JSON.stringify(req.body))
+    res.send(JSON.stringify(req.body))
   });
 })
 
-app.put('/',  (req, res) => {
+app.put('/', (req, res) => {
   res.send('Got a PUT request at /')
 })
 
-app.delete('/',  (req, res) => {
+app.delete('/', (req, res) => {
   res.send('Got a DELETE request at /')
 })
 
 //bind the express web service to the port specified
 app.listen(port, () => {
- console.log(`Express Application listening at port ` + port)
+  console.log(`Express Application listening at port ` + port)
 })
