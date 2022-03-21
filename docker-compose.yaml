@@ -35,26 +35,84 @@ services:
       - ./scripts:/scripts
     restart: "no"
     entrypoint: [ "bash", "/scripts/mongo_setup.sh"]
-  node1: 
-    build: ./nodejs 
+  node1:
+    build: ./nodejs
     container_name: "AppNode1"
-    ports: 
-      - "81:3000" 
-  node2: 
-    build: ./nodejs 
+    ports:
+    - "81:3000"
+  node2:
+    build: ./nodejs
     container_name: "AppNode2"
-    ports: 
-      - "82:3000" 
-  node3: 
-    build: ./nodejs 
+    ports:
+    - "82:3000"
+  node3:
+    build: ./nodejs
     container_name: "AppNode3"
-    ports: 
-      - "83:3000" 
-  nginx: 
-    build: ./nginx 
-    ports: 
-      - "80:80" 
+    ports:
+    - "83:3000"
+  nginx:
+    build: ./nginx
+    container_name: "NGINX"
+    ports:
+    - "80:80"
     depends_on:
-      - node1
-      - node2
-      - node3
+    - node1
+    - node2
+    - node3
+
+ # Message tier
+  rabbitmq-stats:
+    image: bitnami/rabbitmq:3.8.14
+    container_name: rabbitmq-stats
+    volumes:
+      - rabbitmq-stats-data:/bitnami
+    environment:
+      - RABBITMQ_NODE_TYPE=stats
+      - RABBITMQ_NODE_NAME=rabbitmq@rabbitmq-stats
+      - RABBITMQ_ERL_COOKIE=password
+    ports:
+      - "50001:15672"
+  rabbitmq-queue-one:
+    image: bitnami/rabbitmq:3.8.14
+    container_name: rabbitmq-queue-one
+    depends_on:
+      - rabbitmq-stats
+    volumes:
+      - rabbitmq-queue-one-data:/bitnami
+    environment:
+      - RABBITMQ_NODE_TYPE=queue-disc
+      - RABBITMQ_NODE_NAME=rabbitmq@rabbitmq-queue-one
+      - RABBITMQ_CLUSTER_NODE_NAME=rabbitmq@rabbitmq-stats
+      - RABBITMQ_ERL_COOKIE=password
+  rabbitmq-queue-two:
+    image: bitnami/rabbitmq:3.8.14
+    container_name: rabbitmq-queue-two
+    depends_on:
+      - rabbitmq-stats
+    volumes:
+      - rabbitmq-queue-two-data:/bitnami
+    environment:
+      - RABBITMQ_NODE_TYPE=queue-disc
+      - RABBITMQ_NODE_NAME=rabbitmq@rabbitmq-queue-two
+      - RABBITMQ_CLUSTER_NODE_NAME=rabbitmq@rabbitmq-stats
+      - RABBITMQ_ERL_COOKIE=password
+
+  haproxy: 
+    image: haproxy:1.7 
+    volumes: 
+      - ./rabbitmq/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro 
+    depends_on: 
+      - rabbitmq-stats 
+      - rabbitmq-queue-one
+      - rabbitmq-queue-two
+    ports: 
+      - 15672:15672
+      - 5672:5672
+      
+volumes:
+  rabbitmq-stats-data:
+    driver: local
+  rabbitmq-queue-one-data:
+    driver: local
+  rabbitmq-queue-two-data:
+    driver: local
