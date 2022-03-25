@@ -21,6 +21,15 @@ const port = 3000
 //connection string listing the mongo servers. This is an alternative to using a load balancer. THIS SHOULD BE DISCUSSED IN YOUR ASSIGNMENT.
 const connectionString = 'mongodb://localmongo1:27017,localmongo2:27017,localmongo3:27017/notFlixDB?replicaSet=rs0';
 
+//build message as json with hostname and random number
+
+//leader var
+
+//nodes list
+
+
+
+
 setInterval(function () {
   amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error0, connection) {
     //if connection failed throw error
@@ -33,7 +42,7 @@ setInterval(function () {
         throw error1;
       }
       var exchange = 'logs';
-      var msg = 'Hello World!';
+      var msg = 'Hello World! :)';
 
       channel.assertExchange(exchange, 'fanout', {
         durable: false
@@ -41,6 +50,8 @@ setInterval(function () {
 
       channel.publish(exchange, '', Buffer.from(msg));
       console.log(" [x] Sent %s", msg);
+
+      //send your message as json
     });
     //in 1/2 a second force close the connection
     setTimeout(function () {
@@ -71,7 +82,11 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
       channel.bindQueue(q.queue, exchange, '');
       channel.consume(q.queue, function (msg) {
         if (msg.content) {
+         //msg.content back to json
+         //update array of hosts week 9 js example
+         //add the time to the node
           console.log(" [x] %s", msg.content.toString());
+
         }
       }, {
         noAck: true
@@ -79,6 +94,12 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
     });
   });
 });
+
+
+//interval to check if i am the leader. leader = 1
+
+//interval if leader then look through the nodes is anyone missing? if so run axois example to create.
+//for a first add the capability to scale up ...
 
 //tell express to use the body parser. Note - This function was built into express but then moved to a seperate package.
 app.use(bodyParser.json());

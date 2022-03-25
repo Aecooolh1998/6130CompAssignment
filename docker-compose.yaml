@@ -39,26 +39,32 @@ services:
     build: ./nodejs
     container_name: "AppNode1"
     ports:
-    - "81:3000"
+      - "81:3000"
+    volumes:
+      - ./nodejs/src:/usr/src/app/
   node2:
     build: ./nodejs
     container_name: "AppNode2"
     ports:
-    - "82:3000"
+      - "82:3000"
+    volumes:
+      - ./nodejs/src:/usr/src/app/
   node3:
     build: ./nodejs
     container_name: "AppNode3"
     ports:
-    - "83:3000"
+      - "83:3000"
+    volumes:
+      - ./nodejs/src:/usr/src/app/
   nginx:
     build: ./nginx
     container_name: "NGINX"
     ports:
-    - "80:80"
+      - "80:80"
     depends_on:
-    - node1
-    - node2
-    - node3
+      - node1
+      - node2
+      - node3
 
  # Message tier
   rabbitmq-stats:
