@@ -14,6 +14,19 @@ const bodyParser = require('body-parser');
 //Required for messege queueing for RabbitMQ
 var amqp = require('amqplib/callback_api');
 
+//Get the hostname of the node
+const os = require('os');
+var nodeHostName = os.hostname();
+
+// Generate Random NodeID and the current time in seconds for establishing last message sent. 
+var nodeID = Math.floor(Math.random() * (100 - 1 + 1) + 1);
+var currTime = new Date().getTime() / 1000;
+
+// Create list of nodes and message to be sent during timed interval.
+var nodeMessage = { hostname: nodeHostName, nodeID: nodeID, time: currTime };
+var nodeList = [];
+nodeList.push(nodeMessage);
+
 //instance of express and port to use for inbound connections.
 const app = express()
 const port = 3000
@@ -21,46 +34,10 @@ const port = 3000
 //connection string listing the mongo servers. This is an alternative to using a load balancer. THIS SHOULD BE DISCUSSED IN YOUR ASSIGNMENT.
 const connectionString = 'mongodb://localmongo1:27017,localmongo2:27017,localmongo3:27017/notFlixDB?replicaSet=rs0';
 
-//build message as json with hostname and random number
 
-//leader var
-
-//nodes list
-
-
-
-
-setInterval(function () {
-  amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error0, connection) {
-    //if connection failed throw error
-    if (error0) {
-      throw error0;
-    }
-    //create a channel if connected and send hello world to the logs Q
-    connection.createChannel(function (error1, channel) {
-      if (error1) {
-        throw error1;
-      }
-      var exchange = 'logs';
-      var msg = 'Hello World! :)';
-
-      channel.assertExchange(exchange, 'fanout', {
-        durable: false
-      });
-
-      channel.publish(exchange, '', Buffer.from(msg));
-      console.log(" [x] Sent %s", msg);
-
-      //send your message as json
-    });
-    //in 1/2 a second force close the connection
-    setTimeout(function () {
-      connection.close();
-    }, 500);
-  });
-}, 3000);
-
-amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error0, connection) {
+// Handle Alive Messages and populate list of nodes if node isnt already there
+// commented out for now untill implemented
+/* amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error0, connection) {
   if (error0) {
     throw error0;
   }
@@ -82,19 +59,42 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
       channel.bindQueue(q.queue, exchange, '');
       channel.consume(q.queue, function (msg) {
         if (msg.content) {
-         //msg.content back to json
-         //update array of hosts week 9 js example
-         //add the time to the node
+          //msg.content back to json
+          //update array of hosts week 9 js example
+          //add the time to the node
           console.log(" [x] %s", msg.content.toString());
-
         }
       }, {
         noAck: true
       });
     });
   });
-});
+});  */
 
+// Here each node publishes if it is alive or not within five second intervals
+setInterval(function () {
+  amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error0, connection) {
+    if (error0) {
+      throw error0;
+    }
+    connection.createChannel(function (error1, channel) {
+      if (error1) {
+        throw error1;
+      }
+      var exchange = "node alive";
+      // No need to add alive here, as node wouldn't be sending messages if it wasn't alive.
+      var msg = JSON.stringify(['NodeID: ' + nodeID, 'HostName: ' + nodeHostName]);
+      channel.assertExchange(exchange, 'fanout', {
+        durable: false
+      });
+      channel.publish(exchange, '', Buffer.from(msg));
+      console.log(" [x] Sent %s", msg);
+    });
+    setTimeout(function () {
+      connection.close();
+    }, 500);
+  });
+}, 5000);
 
 //interval to check if i am the leader. leader = 1
 
