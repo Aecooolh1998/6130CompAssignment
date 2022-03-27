@@ -37,6 +37,7 @@ services:
     entrypoint: [ "bash", "/scripts/mongo_setup.sh"]
   node1:
     build: ./nodejs
+    hostname: app1
     container_name: "AppNode1"
     ports:
       - "81:3000"
@@ -44,6 +45,7 @@ services:
       - ./nodejs/src:/usr/src/app/
   node2:
     build: ./nodejs
+    hostname: app2
     container_name: "AppNode2"
     ports:
       - "82:3000"
@@ -51,6 +53,7 @@ services:
       - ./nodejs/src:/usr/src/app/
   node3:
     build: ./nodejs
+    hostname: app3
     container_name: "AppNode3"
     ports:
       - "83:3000"
