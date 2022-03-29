@@ -2,6 +2,9 @@
 //Object data modelling library for mongo
 const mongoose = require('mongoose');
 
+var nodeIsLeader = false;
+var rabbitMQStarted = false; // Allows list nodeList to populate otherwise every node spits out its leader.
+
 //Mongo db client library
 //const MongoClient  = require('mongodb');
 
@@ -84,6 +87,7 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
       channel.bindQueue(q.queue, exchange, '');
       channel.consume(q.queue, function (msg) {
         if (msg.content) {
+          rabbitMQStarted = true;
           console.log(" [x] %s", msg.content.toString());
           var incomingNode = JSON.parse(msg.content.toString());
           seconds = new Date().getTime() / 1000;
@@ -98,7 +102,22 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
   });
 });
 
-//interval to check if i am the leader. leader = 1
+// Every five seconds loop through nodesList and compares the ID against one another untill the maximum is found.
+setInterval(function () {
+  if (rabbitMQStarted) {
+    var maxNodeID = 0; // To store current highest nodeID during the iteration.
+    Object.entries(nodeList).forEach(([nodeID, prop]) => {
+      if (prop.hostname != nodeHostName) {
+        if (prop.nodeID > maxNodeID) {
+          maxNodeID = prop.nodeID;
+        }
+      }
+    });
+    if (nodeID >= maxNodeID) {
+      nodeIsLeader = true;
+    }
+  }
+}, 5000);
 
 //interval if leader then look through the nodes is anyone missing? if so run axois example to create.
 //for a first add the capability to scale up ...
