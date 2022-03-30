@@ -20,13 +20,14 @@ var amqp = require('amqplib/callback_api');
 //Get the hostname of the node
 const os = require('os');
 var nodeHostName = os.hostname();
+var alive = true;
 
 // Generate Random NodeID and the current time in seconds for establishing last message sent. 
 var nodeID = Math.floor(Math.random() * (100 - 1 + 1) + 1);
 var seconds = new Date().getTime() / 1000;
 
 // Create list of nodes and message to be sent during timed interval.
-var nodeMessage = { nodeID: nodeID, hostname: nodeHostName, lastMessage: seconds };
+var nodeMessage = { nodeID: nodeID, hostname: nodeHostName, lastMessage: seconds, alive: alive };
 var nodeList = [];
 nodeList.push(nodeMessage);
 
@@ -50,7 +51,7 @@ setInterval(function () {
       var exchange = "node alive";
       seconds = new Date().getTime() / 1000;
       // No need to add alive here, as node wouldn't be sending messages if it wasn't alive.
-      var msg = `{"nodeID": ${nodeID}, "hostname": "${nodeHostName}"}`
+      var msg = `{"nodeID": ${nodeID}, "hostname": "${nodeHostName}", "alive":"${alive}"}`
       // Having trouble sending it as JSON straight away, will resolve this later on.
       var jsonMsg = JSON.stringify(JSON.parse(msg));
       channel.assertExchange(exchange, 'fanout', {
@@ -88,7 +89,7 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
       channel.consume(q.queue, function (msg) {
         if (msg.content) {
           rabbitMQStarted = true;
-          console.log(" [x] %s", msg.content.toString());
+          // console.log(" [x] %s", msg.content.toString()); // commented out for now
           var incomingNode = JSON.parse(msg.content.toString());
           seconds = new Date().getTime() / 1000;
           //Check if node is in list by its ID, if not update the list, else amend node with current seconds value.
@@ -106,18 +107,42 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
 setInterval(function () {
   if (rabbitMQStarted) {
     var maxNodeID = 0; // To store current highest nodeID during the iteration.
-    Object.entries(nodeList).forEach(([nodeID, prop]) => {
-      if (prop.hostname != nodeHostName) {
-        if (prop.nodeID > maxNodeID) {
-          maxNodeID = prop.nodeID;
+    Object.entries(nodeList).forEach(([index, node]) => {
+      if (node.hostname != nodeHostName) {
+        if (node.nodeID > maxNodeID) {
+          maxNodeID = node.nodeID;
         }
       }
     });
     if (nodeID >= maxNodeID) {
+      console.log("The leader is now:" + nodeHostName);
       nodeIsLeader = true;
     }
   }
-}, 5000);
+}, 1000);
+
+
+//Checks if a node hasn't sent a message in ten seconds, and if so report the node is no longer alive.
+setInterval(function () {
+  if (nodeIsLeader) {
+    var deadNodes = [];
+    Object.entries(nodeList).forEach(([index, node]) => {
+      var timeBetweenMessage = Math.round(seconds - node.lastMessage);
+      if (timeBetweenMessage > 10) {  
+        node.alive = false;
+        deadNodes.push(node)
+        console.log("Node no longer alive:" + node.hostname);
+      }
+      else {
+        node.alive = true;
+        console.log("I am alive:" + node.hostname);
+      }
+    });
+    // Configure Docker Stuff For all Dead Nodes
+    deadNodes.forEach(function (node, index) {
+    });
+  }
+}, 3000);
 
 //interval if leader then look through the nodes is anyone missing? if so run axois example to create.
 //for a first add the capability to scale up ...
