@@ -93,7 +93,7 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
           var incomingNode = JSON.parse(msg.content.toString());
           seconds = new Date().getTime() / 1000;
           //Check if node is in list by its ID, if not update the list, else amend node with current seconds value.
-          nodeList.some(nodes => nodes.nodeID === incomingNode.nodeID) ? (nodeList.find(e => e.nodeID === incomingNode.nodeID)).lastMessage = seconds : nodeList.push(incomingNode);
+          nodeList.some(nodes => nodes.hostname === incomingNode.hostname) ? (nodeList.find(e => e.hostname === incomingNode.nodeID)).lastMessage = seconds : nodeList.push(incomingNode);
           console.log(nodeList) // Debug code for now just checking list is populated properly.
         }
       }, {
@@ -140,6 +140,11 @@ setInterval(function () {
     });
     // Configure Docker Stuff For all Dead Nodes
     deadNodes.forEach(function (node, index) {
+
+
+
+
+
     });
   }
 }, 3000);
