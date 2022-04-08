@@ -7,6 +7,8 @@ services:
     ports:
       - "40001:27017"
       - "27017:27017"
+    networks:
+      - nodejs 
     restart: always
     entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "rs0" ]
   mongo2:
@@ -15,6 +17,8 @@ services:
     image: mongo:4.0-xenial
     ports:
       - "40002:27017"
+    networks:
+      - nodejs 
     restart: always
     entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "rs0" ]
   mongo3:
@@ -23,6 +27,8 @@ services:
     image: mongo:4.0-xenial
     ports:
       - "40003:27017"
+    networks:
+      - nodejs 
     restart: always
     entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "rs0" ]
   mongosetup:
@@ -41,12 +47,16 @@ services:
     container_name: "AppNode1"
     ports:
       - "81:3000"
+    networks:
+      - nodejs
     volumes:
       - ./nodejs/src:/usr/src/app/
   node2:
     build: ./nodejs
     hostname: app2
     container_name: "AppNode2"
+    networks:
+      - nodejs
     ports:
       - "82:3000"
     volumes:
@@ -55,6 +65,8 @@ services:
     build: ./nodejs
     hostname: app3
     container_name: "AppNode3"
+    networks:
+      - nodejs
     ports:
       - "83:3000"
     volumes:
@@ -64,6 +76,8 @@ services:
     container_name: "NGINX"
     ports:
       - "80:80"
+    networks:
+      - nodejs 
     depends_on:
       - node1
       - node2
@@ -81,6 +95,8 @@ services:
       - RABBITMQ_ERL_COOKIE=password
     ports:
       - "50001:15672"
+    networks:
+      - nodejs 
   rabbitmq-queue-one:
     image: bitnami/rabbitmq:3.8.14
     container_name: rabbitmq-queue-one
@@ -93,6 +109,8 @@ services:
       - RABBITMQ_NODE_NAME=rabbitmq@rabbitmq-queue-one
       - RABBITMQ_CLUSTER_NODE_NAME=rabbitmq@rabbitmq-stats
       - RABBITMQ_ERL_COOKIE=password
+    networks:
+      - nodejs 
   rabbitmq-queue-two:
     image: bitnami/rabbitmq:3.8.14
     container_name: rabbitmq-queue-two
@@ -105,6 +123,8 @@ services:
       - RABBITMQ_NODE_NAME=rabbitmq@rabbitmq-queue-two
       - RABBITMQ_CLUSTER_NODE_NAME=rabbitmq@rabbitmq-stats
       - RABBITMQ_ERL_COOKIE=password
+    networks:
+      - nodejs 
 
   haproxy: 
     image: haproxy:1.7 
@@ -117,6 +137,8 @@ services:
     ports: 
       - 15672:15672
       - 5672:5672
+    networks:
+      - nodejs 
       
 volumes:
   rabbitmq-stats-data:
@@ -125,3 +147,7 @@ volumes:
     driver: local
   rabbitmq-queue-two-data:
     driver: local
+
+networks:
+  nodejs:
+    driver: bridge

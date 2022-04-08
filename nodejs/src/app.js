@@ -2,6 +2,9 @@
 //Object data modelling library for mongo
 const mongoose = require('mongoose');
 
+// import axios
+const axios = require('axios').default;
+
 var nodeIsLeader = false;
 var rabbitMQStarted = false; // Allows list nodeList to populate otherwise every node spits out its leader.
 
@@ -25,6 +28,9 @@ var alive = true;
 // Generate Random NodeID and the current time in seconds for establishing last message sent. 
 var nodeID = Math.floor(Math.random() * (100 - 1 + 1) + 1);
 var seconds = new Date().getTime() / 1000;
+
+// Have we already spun up extra peak-time instances?
+var peakTimeActive = false;
 
 // Create list of nodes and message to be sent during timed interval.
 var nodeMessage = { nodeID: nodeID, hostname: nodeHostName, lastMessage: seconds, alive: alive };
@@ -92,8 +98,17 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
           // console.log(" [x] %s", msg.content.toString()); // commented out for now
           var incomingNode = JSON.parse(msg.content.toString());
           seconds = new Date().getTime() / 1000;
-          //Check if node is in list by its ID, if not update the list, else amend node with current seconds value.
-          nodeList.some(nodes => nodes.nodeID === incomingNode.nodeID) ? (nodeList.find(e => e.nodeID === incomingNode.nodeID)).lastMessage = seconds : nodeList.push(incomingNode);
+          //Check if node is in list by its hostname, if not update the list, else amend node with current seconds value and any new ID that a restarted node may have acquired.
+          if (nodeList.some(nodes => nodes.hostname === incomingNode.hostname)) {
+            var matchedNode = nodeList.find(e => e.hostname === incomingNode.hostname);
+            matchedNode.lastMessage = seconds;
+            if (matchedNode.nodeID !== incomingNode.nodeID) {
+              matchedNode.nodeID = incomingNode.nodeID;
+            }
+
+          } else {
+            nodeList.push(incomingNode);
+          }
           console.log(nodeList) // Debug code for now just checking list is populated properly.
         }
       }, {
@@ -122,13 +137,13 @@ setInterval(function () {
 }, 1000);
 
 
-//Checks if a node hasn't sent a message in ten seconds, and if so report the node is no longer alive.
+//Checks if a node hasn't sent a message in ten seconds, and if so report the node is no longer alive and restart new container
 setInterval(function () {
   if (nodeIsLeader) {
     var deadNodes = [];
     Object.entries(nodeList).forEach(([index, node]) => {
       var timeBetweenMessage = Math.round(seconds - node.lastMessage);
-      if (timeBetweenMessage > 10) {  
+      if (timeBetweenMessage > 10) {
         node.alive = false;
         deadNodes.push(node)
         console.log("Node no longer alive:" + node.hostname);
@@ -140,12 +155,92 @@ setInterval(function () {
     });
     // Configure Docker Stuff For all Dead Nodes
     deadNodes.forEach(function (node, index) {
+      var hostname = "AppNode" + (nodeList.length + 1);
+      var containerDetails = {
+        Image: "6130compassignment_node1",
+        Hostname: "app" + (nodeList.length + 1),
+        NetworkingConfig: {
+          EndpointsConfig: {
+            "6130compassignment_nodejs": {},
+          },
+        }
+      };
+      createAndStartContainer(hostname, containerDetails);
     });
   }
-}, 3000);
+}, 20000);
 
-//interval if leader then look through the nodes is anyone missing? if so run axois example to create.
-//for a first add the capability to scale up ...
+
+async function createAndStartContainer(containerName, containerDetails) {
+  try {
+    console.log(`Attempting to start container: ${containerName}`);
+    await axios.post(`http://host.docker.internal:2375/containers/create?name=${containerName}`, containerDetails).then(function (response) { console.log(response) });
+    await axios.post(`http://host.docker.internal:2375/containers/${containerName}/start`);
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+async function killAndRemoveContainer(containerName) {
+  try {
+    console.log(`Attempting to kill container: ${containerName}`);
+    await axios.post(`http://host.docker.internal:2375/containers/${containerName}/kill`);
+    await axios.delete(`http://host.docker.internal:2375/containers/${containerName}`);
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+
+// Scale up when between 16:00 and 18:00 and if not within those hours, scale down.
+setInterval(function () {
+  if (nodeIsLeader) {
+    var nowHour = new Date().getHours();
+    if (nowHour >= 15 && nowHour < 17 && !peakTimeActive) {
+      // Spin em up
+      var currentNodeCount = nodeList.length;
+      var containerDetails = [{
+        Image: "6130compassignment_node1",
+        Hostname: "app" + (currentNodeCount + 1),
+        NetworkingConfig: {
+          EndpointsConfig: {
+            "6130compassignment_nodejs": {},
+          },
+        },
+
+      }, {
+        Image: "6130compassignment_node1",
+        Hostname: "app" + (currentNodeCount + 2),
+        NetworkingConfig: {
+          EndpointsConfig: {
+            "6130compassignment_nodejs": {},
+          },
+        },
+      }];
+      containerDetails.forEach(function (node, index) {
+        var nodeName = "AppNode" + node.Hostname.substring(3);
+        createAndStartContainer(nodeName, node);
+      });
+      peakTimeActive = true;
+
+    } else if (nowHour < 15 && nowHour >= 17 && peakTimeActive) {
+      var currentNodeCount = nodeList.length;
+      var containerDetails = [{
+        Image: "6130compassignment_node1",
+        Hostname: "app" + (currentNodeCount - 2)
+      }, {
+        Image: "6130compassignment_node1",
+        Hostname: "app" + (currentNodeCount - 1)
+      }];
+      containerDetails.forEach(function (node, index) {
+        var nodeName = "AppNode" + node.Hostname.substring(3);
+        killAndRemoveContainer(nodeName);
+      });
+      peakTimeActive = false;
+
+    }
+  }
+}, 3000);
 
 //tell express to use the body parser. Note - This function was built into express but then moved to a seperate package.
 app.use(bodyParser.json());

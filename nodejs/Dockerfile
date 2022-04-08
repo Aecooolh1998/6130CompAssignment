@@ -4,7 +4,7 @@ WORKDIR /usr/src/app
 EXPOSE 3000
 COPY src/ .
 RUN ls -la /usr/src/app/*
-RUN npm install express mongoose amqplib
+RUN npm install express mongoose amqplib axios
 RUN npm install pm2 -g
 CMD [ "pm2-runtime", "app.js", "--watch" ]
 
