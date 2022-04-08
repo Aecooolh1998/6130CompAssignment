@@ -95,8 +95,17 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
           // console.log(" [x] %s", msg.content.toString()); // commented out for now
           var incomingNode = JSON.parse(msg.content.toString());
           seconds = new Date().getTime() / 1000;
-          //Check if node is in list by its hostname, if not update the list, else amend node with current seconds value.
-          nodeList.some(nodes => nodes.hostname === incomingNode.hostname) ? (nodeList.find(e => e.nodeID === incomingNode.nodeID)).lastMessage = seconds : nodeList.push(incomingNode);
+          //Check if node is in list by its hostname, if not update the list, else amend node with current seconds value and any new ID that a restarted node may have acquired.
+          if (nodeList.some(nodes => nodes.hostname === incomingNode.hostname)) {
+            var matchedNode = nodeList.find(e => e.hostname === incomingNode.hostname);
+            matchedNode.lastMessage = seconds;
+            if (matchedNode.nodeID !== incomingNode.nodeID) {
+              matchedNode.nodeID = incomingNode.nodeID;
+            }
+
+          } else {
+            nodeList.push(incomingNode);
+          }
           console.log(nodeList) // Debug code for now just checking list is populated properly.
         }
       }, {
@@ -131,7 +140,7 @@ setInterval(function () {
     var deadNodes = [];
     Object.entries(nodeList).forEach(([index, node]) => {
       var timeBetweenMessage = Math.round(seconds - node.lastMessage);
-      if (timeBetweenMessage > 10) {  
+      if (timeBetweenMessage > 10) {
         node.alive = false;
         deadNodes.push(node)
         console.log("Node no longer alive:" + node.hostname);
@@ -143,14 +152,21 @@ setInterval(function () {
     });
     // Configure Docker Stuff For all Dead Nodes
     deadNodes.forEach(function (node, index) {
-
-
-
-
-
+      var hostname = "AppNode" + node.hostname.substring(3);
+      startContainer(hostname);
     });
   }
 }, 3000);
+
+
+async function startContainer(containerName) {
+  try {
+    console.log(`Attempting to start container: ${containerName}`);
+    await axios.post(`http://host.docker.internal:2375/containers/${containerName}/start`);
+  } catch (error) {
+    console.log(error);
+  }
+}
 
 //interval if leader then look through the nodes is anyone missing? if so run axois example to create.
 //for a first add the capability to scale up ...
