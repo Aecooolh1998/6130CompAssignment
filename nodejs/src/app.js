@@ -29,6 +29,9 @@ var alive = true;
 var nodeID = Math.floor(Math.random() * (100 - 1 + 1) + 1);
 var seconds = new Date().getTime() / 1000;
 
+// Have we already spun up extra peak-time instances?
+var peakTimeActive = false;
+
 // Create list of nodes and message to be sent during timed interval.
 var nodeMessage = { nodeID: nodeID, hostname: nodeHostName, lastMessage: seconds, alive: alive };
 var nodeList = [];
@@ -134,7 +137,7 @@ setInterval(function () {
 }, 1000);
 
 
-//Checks if a node hasn't sent a message in ten seconds, and if so report the node is no longer alive.
+//Checks if a node hasn't sent a message in ten seconds, and if so report the node is no longer alive and restart new container
 setInterval(function () {
   if (nodeIsLeader) {
     var deadNodes = [];
@@ -152,24 +155,92 @@ setInterval(function () {
     });
     // Configure Docker Stuff For all Dead Nodes
     deadNodes.forEach(function (node, index) {
-      var hostname = "AppNode" + node.hostname.substring(3);
-      startContainer(hostname);
+      var hostname = "AppNode" + (nodeList.length + 1);
+      var containerDetails = {
+        Image: "6130compassignment_node1",
+        Hostname: "app" + (nodeList.length + 1),
+        NetworkingConfig: {
+          EndpointsConfig: {
+            "6130compassignment_nodejs": {},
+          },
+        }
+      };
+      createAndStartContainer(hostname, containerDetails);
     });
   }
-}, 3000);
+}, 20000);
 
 
-async function startContainer(containerName) {
+async function createAndStartContainer(containerName, containerDetails) {
   try {
     console.log(`Attempting to start container: ${containerName}`);
+    await axios.post(`http://host.docker.internal:2375/containers/create?name=${containerName}`, containerDetails).then(function (response) { console.log(response) });
     await axios.post(`http://host.docker.internal:2375/containers/${containerName}/start`);
   } catch (error) {
     console.log(error);
   }
 }
 
-//interval if leader then look through the nodes is anyone missing? if so run axois example to create.
-//for a first add the capability to scale up ...
+async function killAndRemoveContainer(containerName) {
+  try {
+    console.log(`Attempting to kill container: ${containerName}`);
+    await axios.post(`http://host.docker.internal:2375/containers/${containerName}/kill`);
+    await axios.delete(`http://host.docker.internal:2375/containers/${containerName}`);
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+
+// Scale up when between 16:00 and 18:00 and if not within those hours, scale down.
+setInterval(function () {
+  if (nodeIsLeader) {
+    var nowHour = new Date().getHours();
+    if (nowHour >= 15 && nowHour < 17 && !peakTimeActive) {
+      // Spin em up
+      var currentNodeCount = nodeList.length;
+      var containerDetails = [{
+        Image: "6130compassignment_node1",
+        Hostname: "app" + (currentNodeCount + 1),
+        NetworkingConfig: {
+          EndpointsConfig: {
+            "6130compassignment_nodejs": {},
+          },
+        },
+
+      }, {
+        Image: "6130compassignment_node1",
+        Hostname: "app" + (currentNodeCount + 2),
+        NetworkingConfig: {
+          EndpointsConfig: {
+            "6130compassignment_nodejs": {},
+          },
+        },
+      }];
+      containerDetails.forEach(function (node, index) {
+        var nodeName = "AppNode" + node.Hostname.substring(3);
+        createAndStartContainer(nodeName, node);
+      });
+      peakTimeActive = true;
+
+    } else if (nowHour < 15 && nowHour >= 17 && peakTimeActive) {
+      var currentNodeCount = nodeList.length;
+      var containerDetails = [{
+        Image: "6130compassignment_node1",
+        Hostname: "app" + (currentNodeCount - 2)
+      }, {
+        Image: "6130compassignment_node1",
+        Hostname: "app" + (currentNodeCount - 1)
+      }];
+      containerDetails.forEach(function (node, index) {
+        var nodeName = "AppNode" + node.Hostname.substring(3);
+        killAndRemoveContainer(nodeName);
+      });
+      peakTimeActive = false;
+
+    }
+  }
+}, 3000);
 
 //tell express to use the body parser. Note - This function was built into express but then moved to a seperate package.
 app.use(bodyParser.json());
