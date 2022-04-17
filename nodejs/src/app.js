@@ -104,7 +104,7 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
 });
 
 
-// Find leader based on ID and broadcast it every five seconds.
+// Find leader based on ID and broadcast it every two seconds.
 setInterval(function () {
   if (rabbitMQStarted) {
     var maxNodeID = 0; // To store current highest nodeID during the iteration.
@@ -120,7 +120,7 @@ setInterval(function () {
       nodeIsLeader = true;
     }
   }
-}, 5000);
+}, 2000);
 
 
 // Node hasn't sent message in ten seconds create a new instance of App.js
