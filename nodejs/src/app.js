@@ -14,7 +14,7 @@ var nodeHostName = os.hostname();
 var alive = true; // Node Alive or Not
 var nodeID = Math.floor(Math.random() * (100 - 1 + 1) + 1);
 var seconds = new Date().getTime() / 1000; // Used to establish last time node broadcasted a message.
-var peakTimeActive = false; // Are we within NotFLIX Peak hours?
+var hasScaledUp = false; // Are we within NotFLIX Peak hours?
 
 // Create list of nodes and message to be sent during timed interval.
 var nodeMessage = { nodeID: nodeID, hostname: nodeHostName, lastMessage: seconds, alive: alive };
@@ -179,16 +179,16 @@ async function killAndRemoveContainer(containerName) {
   }
 }
 
-// Scale up when between 16:00 and 18:00 and if not within those hours, scale down.
 setInterval(function () {
   if (nodeIsLeader) {
     var nowHour = new Date().getHours();
-    if (nowHour >= 15 && nowHour < 17 && !peakTimeActive) {
-      // Spin em up
-      var currentNodeCount = nodeList.length;
+    var randomAppNode1 = Math.floor(Math.random() * (999 - 100 + 1) + 100); // Give new node random 3 digit name for its hostname
+    var randomAppNode2 = Math.floor(Math.random() * (999 - 100 + 1) + 100); // Give new node random 3 digit name for its hostname
+    if (nowHour >= 15 && nowHour < 17 && !hasScaledUp) {
+      console.log("NotFLIX peak hours reached, spinning up two new containers");
       var containerDetails = [{
         Image: "6130compassignment_node1",
-        Hostname: "app" + (currentNodeCount + 1),
+        Hostname: "app" + randomAppNode1,
         NetworkingConfig: {
           EndpointsConfig: {
             "6130compassignment_nodejs": {},
@@ -197,7 +197,7 @@ setInterval(function () {
 
       }, {
         Image: "6130compassignment_node1",
-        Hostname: "app" + (currentNodeCount + 2),
+        Hostname: "app" + randomAppNode2,
         NetworkingConfig: {
           EndpointsConfig: {
             "6130compassignment_nodejs": {},
@@ -208,26 +208,10 @@ setInterval(function () {
         var nodeName = "AppNode" + node.Hostname.substring(3);
         createAndStartContainer(nodeName, node);
       });
-      peakTimeActive = true;
-
-    } else if (nowHour < 15 && nowHour >= 17 && peakTimeActive) {
-      var currentNodeCount = nodeList.length;
-      var containerDetails = [{
-        Image: "6130compassignment_node1",
-        Hostname: "app" + (currentNodeCount - 2)
-      }, {
-        Image: "6130compassignment_node1",
-        Hostname: "app" + (currentNodeCount - 1)
-      }];
-      containerDetails.forEach(function (node, index) {
-        var nodeName = "AppNode" + node.Hostname.substring(3);
-        killAndRemoveContainer(nodeName);
-      });
-      peakTimeActive = false;
-
+      hasScaledUp = true;
     }
   }
-}, 3000);
+}, 5000);
 
 //tell express to use the body parser. Note - This function was built into express but then moved to a seperate package.
 app.use(bodyParser.json());
