@@ -1,50 +1,35 @@
 
-//Object data modelling library for mongo
-const mongoose = require('mongoose');
+/* Libraries */
+const mongoose = require('mongoose'); // Object Data Modelling for Mongo
+const axios = require('axios'); // Axios for Building Conatiners
+const express = require('express'); // Express Web Service
+const bodyParser = require('body-parser'); //Used to parse the server response from json to object.
+var amqp = require('amqplib/callback_api'); //Required for messege queueing for RabbitMQ
+const os = require('os'); // Get node hostname
+/* Libraries End */
 
-// import axios
-const axios = require('axios').default;
-
-var nodeIsLeader = false;
+var nodeIsLeader = false; // Used to Set Single Node as Leader
 var rabbitMQStarted = false; // Allows list nodeList to populate otherwise every node spits out its leader.
-
-//Mongo db client library
-//const MongoClient  = require('mongodb');
-
-//Express web service library
-const express = require('express')
-
-//used to parse the server response from json to object.
-const bodyParser = require('body-parser');
-
-//Required for messege queueing for RabbitMQ
-var amqp = require('amqplib/callback_api');
-
-//Get the hostname of the node
-const os = require('os');
 var nodeHostName = os.hostname();
-var alive = true;
-
-// Generate Random NodeID and the current time in seconds for establishing last message sent. 
+var alive = true; // Node Alive or Not
 var nodeID = Math.floor(Math.random() * (100 - 1 + 1) + 1);
-var seconds = new Date().getTime() / 1000;
-
-// Have we already spun up extra peak-time instances?
-var peakTimeActive = false;
+var seconds = new Date().getTime() / 1000; // Used to establish last time node broadcasted a message.
+var peakTimeActive = false; // Are we within NotFLIX Peak hours?
 
 // Create list of nodes and message to be sent during timed interval.
 var nodeMessage = { nodeID: nodeID, hostname: nodeHostName, lastMessage: seconds, alive: alive };
 var nodeList = [];
 nodeList.push(nodeMessage);
 
-//instance of express and port to use for inbound connections.
-const app = express()
-const port = 3000
-
-//connection string listing the mongo servers. This is an alternative to using a load balancer. THIS SHOULD BE DISCUSSED IN YOUR ASSIGNMENT.
+// Connection String Listening to Mongo Servers
 const connectionString = 'mongodb://localmongo1:27017,localmongo2:27017,localmongo3:27017/notFlixDB?replicaSet=rs0';
 
-// Here each node publishes if it is alive or not within five second intervals
+//instance of express and port to use for inbound connections.
+const app = express();
+const port = 3000;
+
+
+// Node Broadcasts it is alive every five seconds.
 setInterval(function () {
   amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error0, connection) {
     if (error0) {
@@ -56,9 +41,8 @@ setInterval(function () {
       }
       var exchange = "node alive";
       seconds = new Date().getTime() / 1000;
-      // No need to add alive here, as node wouldn't be sending messages if it wasn't alive.
+      // Message object which is broadcast to the listener.
       var msg = `{"nodeID": ${nodeID}, "hostname": "${nodeHostName}", "alive":"${alive}"}`
-      // Having trouble sending it as JSON straight away, will resolve this later on.
       var jsonMsg = JSON.stringify(JSON.parse(msg));
       channel.assertExchange(exchange, 'fanout', {
         durable: false
@@ -71,7 +55,7 @@ setInterval(function () {
   });
 }, 5000);
 
-// Subscribe to alive messages, and add note to alive list based on if its ID exists in the list or not.
+// Nodes Subscribe to Message
 amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error0, connection) {
   if (error0) {
     throw error0;
@@ -95,21 +79,22 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
       channel.consume(q.queue, function (msg) {
         if (msg.content) {
           rabbitMQStarted = true;
-          // console.log(" [x] %s", msg.content.toString()); // commented out for now
           var incomingNode = JSON.parse(msg.content.toString());
           seconds = new Date().getTime() / 1000;
-          //Check if node is in list by its hostname, if not update the list, else amend node with current seconds value and any new ID that a restarted node may have acquired.
+          /*Check if node is in list by its hostname, if not update the list, 
+          else amend node with current seconds value and any new ID that a restarted node may have acquired.
+          */
           if (nodeList.some(nodes => nodes.hostname === incomingNode.hostname)) {
             var matchedNode = nodeList.find(e => e.hostname === incomingNode.hostname);
             matchedNode.lastMessage = seconds;
             if (matchedNode.nodeID !== incomingNode.nodeID) {
               matchedNode.nodeID = incomingNode.nodeID;
             }
-
           } else {
             nodeList.push(incomingNode);
           }
-          console.log(nodeList) // Debug code for now just checking list is populated properly.
+          console.log("List of Alive Nodes");
+          console.log(nodeList);
         }
       }, {
         noAck: true
@@ -118,7 +103,8 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
   });
 });
 
-// Every five seconds loop through nodesList and compares the ID against one another untill the maximum is found.
+
+// Find leader based on ID and broadcast it every five seconds.
 setInterval(function () {
   if (rabbitMQStarted) {
     var maxNodeID = 0; // To store current highest nodeID during the iteration.
@@ -134,31 +120,33 @@ setInterval(function () {
       nodeIsLeader = true;
     }
   }
-}, 1000);
+}, 5000);
 
 
-//Checks if a node hasn't sent a message in ten seconds, and if so report the node is no longer alive and restart new container
+// Node hasn't sent message in ten seconds create a new instance of App.js
 setInterval(function () {
+  var deadNodes = []; // Temporary list storing dead nodes.
+  Object.entries(nodeList).forEach(([index, node]) => {
+    var timeBetweenMessage = Math.round(seconds - node.lastMessage);
+    if (timeBetweenMessage > 10) {
+      node.alive = false;
+      deadNodes.push(node)
+      nodeList.splice(index, 1); // Remove node from list of alive nodes as it is no longer needed.
+      console.log("Node no longer alive:" + node.hostname);
+    }
+    else {
+      node.alive = true;
+      console.log("I am alive:" + node.hostname);
+    }
+  });
   if (nodeIsLeader) {
-    var deadNodes = [];
-    Object.entries(nodeList).forEach(([index, node]) => {
-      var timeBetweenMessage = Math.round(seconds - node.lastMessage);
-      if (timeBetweenMessage > 10) {
-        node.alive = false;
-        deadNodes.push(node)
-        console.log("Node no longer alive:" + node.hostname);
-      }
-      else {
-        node.alive = true;
-        console.log("I am alive:" + node.hostname);
-      }
-    });
-    // Configure Docker Stuff For all Dead Nodes
+    // Create new container for every dead node that has occured.
+    var randomAppNode = Math.floor(Math.random() * (999 - 100 + 1) + 100); // Give new node random 3 digit name for its hostname
     deadNodes.forEach(function (node, index) {
-      var hostname = "AppNode" + (nodeList.length + 1);
+      var hostname = "AppNode" + (randomAppNode);
       var containerDetails = {
         Image: "6130compassignment_node1",
-        Hostname: "app" + (nodeList.length + 1),
+        Hostname: hostname,
         NetworkingConfig: {
           EndpointsConfig: {
             "6130compassignment_nodejs": {},
@@ -190,7 +178,6 @@ async function killAndRemoveContainer(containerName) {
     console.log(error);
   }
 }
-
 
 // Scale up when between 16:00 and 18:00 and if not within those hours, scale down.
 setInterval(function () {
@@ -247,7 +234,6 @@ app.use(bodyParser.json());
 
 //connect to the cluster
 mongoose.connect(connectionString, { useNewUrlParser: true, useUnifiedTopology: true });
-
 
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
