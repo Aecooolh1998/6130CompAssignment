@@ -1,11 +1,11 @@
 
 /* Libraries */
 const mongoose = require('mongoose'); // Object Data Modelling for Mongo
-const axios = require('axios'); // Axios for Building Conatiners
 const express = require('express'); // Express Web Service
 const bodyParser = require('body-parser'); //Used to parse the server response from json to object.
-var amqp = require('amqplib/callback_api'); //Required for messege queueing for RabbitMQ
 const os = require('os'); // Get node hostname
+const axios = require('axios'); // Axios for Building Conatiners
+var amqp = require('amqplib/callback_api'); //Required for messege queueing for RabbitMQ
 /* Libraries End */
 
 var nodeIsLeader = false; // Used to Set Single Node as Leader
@@ -116,14 +116,14 @@ setInterval(function () {
       }
     });
     if (nodeID >= maxNodeID) {
-      console.log("The leader is now:" + nodeHostName);
+      console.log("The leader is: " + nodeHostName);
       nodeIsLeader = true;
     }
   }
 }, 2000);
 
 
-// Node hasn't sent message in ten seconds create a new instance of App.js
+// Node hasn't sent message in twenty seconds create a new instance of App.js
 setInterval(function () {
   var deadNodes = []; // Temporary list storing dead nodes.
   Object.entries(nodeList).forEach(([index, node]) => {
@@ -132,11 +132,11 @@ setInterval(function () {
       node.alive = false;
       deadNodes.push(node)
       nodeList.splice(index, 1); // Remove node from list of alive nodes as it is no longer needed.
-      console.log("Node no longer alive:" + node.hostname);
+      console.log("Node no longer alive: " + node.hostname);
     }
     else {
       node.alive = true;
-      console.log("I am alive:" + node.hostname);
+      console.log("I am alive: " + node.hostname);
     }
   });
   if (nodeIsLeader) {
@@ -179,12 +179,13 @@ async function killAndRemoveContainer(containerName) {
   }
 }
 
+// If node within NotFLIX peak hours, spin up new two new instances to acommodate.
 setInterval(function () {
   if (nodeIsLeader) {
     var nowHour = new Date().getHours();
     var randomAppNode1 = Math.floor(Math.random() * (999 - 100 + 1) + 100); // Give new node random 3 digit name for its hostname
-    var randomAppNode2 = Math.floor(Math.random() * (999 - 100 + 1) + 100); // Give new node random 3 digit name for its hostname
-    if (nowHour >= 15 && nowHour < 17 && !hasScaledUp) {
+    var randomAppNode2 = Math.floor(Math.random() * (999 - 100 + 1) + 100);
+    if (nowHour >= 12 && nowHour < 14 && !hasScaledUp) {
       console.log("NotFLIX peak hours reached, spinning up two new containers");
       var containerDetails = [{
         Image: "6130compassignment_node1",
@@ -208,7 +209,7 @@ setInterval(function () {
         var nodeName = "AppNode" + node.Hostname.substring(3);
         createAndStartContainer(nodeName, node);
       });
-      hasScaledUp = true;
+      hasScaledUp = true; // Stops this from running multiple times.
     }
   }
 }, 5000);

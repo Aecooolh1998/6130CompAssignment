@@ -3,7 +3,7 @@ echo "sleeping for 10 seconds"
 sleep 10
 
 echo mongo_setup.sh time now: `date +"%T" `
-mongo --host mongo1:27017 <<EOF
+mongo --host localmongo1:27017 <<EOF
   var cfg = {
     "_id": "rs0",
     "version": 1,
