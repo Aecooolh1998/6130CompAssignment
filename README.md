@@ -32,7 +32,7 @@ inside of the directory which has been created.
 
 # MongoDB Tests
 1) Open up MongoDB and connect using the connection string 'mongodb://localmongo1:27017,localmongo2:27017,localmongo3:27017/notFlixDB?replicaSet=rs0' (You may have an issue here where it cannot connect to MongoDB this can be fixed by adding '127.0.0.1 localmongo1' to your hosts file in 'C:\Windows\System32\drivers\etc')
-2) Once Connected you can create a playground in order to select the notFLIXDB database and insert data, an example playground is found in mongo-tests/playground.mongodb
+2) Once Connected you can create a playground in order to select the notFLIXDB database and insert data, an example playground is found and can be run from mongo-tests/playground.mongodb
 3) Next if you open up the mongo-tests/express.http file you will see two HTTP requests which can be sent the REST Client will allow you to 'Send Request'.
 4) Clicking 'Send Request' on the GET endpoint will return all the data in the database.
 5) Clicking 'Send Request' on the POST endpoint will add a new record to the database. If the post fails, it is because the set up ID number already exists, so giving it a number that is not already returned from the GET will fix this. 
@@ -66,5 +66,13 @@ then it will become the leader, but you will only see its console output if you 
 3) You will also see they have been added to the array of Alive Nodes, are Broadcasting an array of all the alive nodes and the leader is stating these new nodes are alive.
 4) If one of these nodes has a higher ID than the current leader, it will become the new leader automatically, but As the new node is not part of the composition in the docker-compose.yaml file, if this starts up with a higher ID than the other nodes
 then it will become the leader, but you will only see its console output if you click into that node in Docker Desktop.
+5) You can even stop one of these new nodes from Docker and after it hasn't broadcast a message in ten seconds then a new container will be brought up by the set interval which handles dead nodes.
+
+# Scale Down
+1) Once the peak time has been exceeded, and the application has already been scaled then the last two nodes in the array will be removed and killed.
+This stops them from being brought back up again from the setinterval which handles dead nodes.
+2) You can test this by running the application between 4pm and 6pm watching the containers scale up in Docker Desktop then scale down once 6pm is exceeded.
+3) Or you can test it by manually setting the 'nowHours' value to exeed their peak time and set the hasScaledUp value to true
+this will force jump into this code block, remove two containers and then set the hasScaledUp value back to true to stop it looping.
 
 ###### Tests End ######

@@ -10,9 +10,13 @@ use('notFlixDB');
 // Make sure you run it against the correct database and collection.
 db.interaction.drop();
 
-// Insert a few documents into the sales collection.
+// Insert a few documents into the user interaction collection.
 db.interaction.insertMany([
-  { '_id': 1, 'accountID': 1, 'userName': 'Aaron Higgins', 'titleID': 1, 'userAction': 'Paused', 'dateTime': '2022-01-04', 'pointOfInteraction': '00:53:46', 'typeOfInteraction': 'Paused'   }
+  { '_id': 1, 'accountID': 1, 'userName': 'Aaron Higgins', 'titleID': 1, 'userAction': 'Paused', 'dateTime': '2022-01-04', 'pointOfInteraction': '00:53:46', 'typeOfInteraction': 'Paused'  },
+  { '_id': 2, 'accountID': 2, 'userName': 'Jade Allport', 'titleID': 2, 'userAction': 'Play', 'dateTime': '2022-01-11', 'pointOfInteraction': '01:29:48', 'typeOfInteraction': 'Played'  },
+  { '_id': 3, 'accountID': 3, 'userName': 'Luke Dubuisson', 'titleID': 3, 'userAction': 'Stop', 'dateTime': '2022-01-19', 'pointOfInteraction': '02:01:23', 'typeOfInteraction': 'Stopped'  },
+
+
 ]);
 
 use('notFlixDB');

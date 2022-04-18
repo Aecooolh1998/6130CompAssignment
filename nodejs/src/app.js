@@ -103,7 +103,6 @@ amqp.connect('amqp://user:bitnami@6130CompAssignment_haproxy_1', function (error
   });
 });
 
-
 // Find leader based on ID and broadcast it every two seconds.
 setInterval(function () {
   if (rabbitMQStarted) {
@@ -122,8 +121,7 @@ setInterval(function () {
   }
 }, 2000);
 
-
-// Node hasn't sent message in twenty seconds create a new instance of App.js
+// Node hasn't sent message in ten seconds create a new instance of App.js
 setInterval(function () {
   var deadNodes = []; // Temporary list storing dead nodes.
   Object.entries(nodeList).forEach(([index, node]) => {
@@ -185,7 +183,7 @@ setInterval(function () {
     var nowHour = new Date().getHours();
     var randomAppNode1 = Math.floor(Math.random() * (999 - 100 + 1) + 100); // Give new node random 3 digit name for its hostname
     var randomAppNode2 = Math.floor(Math.random() * (999 - 100 + 1) + 100);
-    if (nowHour >= 12 && nowHour < 14 && !hasScaledUp) {
+    if (nowHour >= 15 && nowHour < 17 && !hasScaledUp) { // Hours are 1 behind due to Daylight Saving Time
       console.log("NotFLIX peak hours reached, spinning up two new containers");
       var containerDetails = [{
         Image: "6130compassignment_node1",
@@ -205,11 +203,19 @@ setInterval(function () {
           },
         },
       }];
+      console.log("Node has died, starting new node");
       containerDetails.forEach(function (node, index) {
         var nodeName = "AppNode" + node.Hostname.substring(3);
         createAndStartContainer(nodeName, node);
       });
       hasScaledUp = true; // Stops this from running multiple times.
+    }
+    if (nowHour < 15 && nowHour >= 17 && hasScaledUp) { // Gets last two nodes from list, kills and removes them stopping from being brought back up.
+      const nodeToDelete1 = "AppNode" + nodeList.slice(-1)[0].hostname.substring(3);
+      const nodeToDelete2 = "AppNode" + nodeList.slice(-2)[0].hostname.substring(3);
+      killAndRemoveContainer(nodeToDelete1);
+      killAndRemoveContainer(nodeToDelete2);
+      hasScaledUp = false;
     }
   }
 }, 5000);
